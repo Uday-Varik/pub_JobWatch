@@ -1,0 +1,178 @@
+# Set to true to stop fetching and alerting without touching anything else;
+# the tracked state is preserved and resumes when set back to false.
+paused: false
+
+# Titles to match (case-insensitive substring). Edit to fit the roles you
+# want; a company can override this list with its own `keywords:`.
+keywords:
+  - Software Engineer
+  - Software Development Engineer
+  - Software Developer
+  - Staff Software
+  - Senior Software
+  - Full Stack
+  - Fullstack
+  - Backend Engineer
+  - AI Engineer
+  - ML Engineer
+  - Machine Learning
+  - Applied AI
+  - Applied ML
+  - LLM
+  - Generative AI
+  - GenAI
+  - Inference
+  - AI Infrastructure
+  - Agents
+  - Platform Engineer
+  - Infrastructure Engineer
+  - Research Engineer
+  - Forward Deployed
+  - FDE
+  - Member of Technical Staff
+  - MTS
+
+# Non-US locations are auto-filtered (India, UK, etc.)
+# Additional location allowlist (empty = accept all US locations):
+locations: []
+
+filters:
+  # Drop new-grad / early-career titles at the filter stage so they never
+  # reach any tier.
+  exclude_new_grad: true
+  # Postings older than this are ignored. The pipeline runs twice on
+  # weekdays only, so 72h covers Friday-afternoon-to-Monday-morning.
+  max_age_hours: 72
+
+retention:
+  # How long a posting is remembered after it was LAST seen on a board.
+  # While a job stays posted it is refreshed every run and never expires;
+  # once it disappears it is kept this many more days so a repost is not
+  # re-alerted. Jobs you mark applied/interview/offer are never deleted.
+  job_days: 60
+  # Per-source health history (feeds the weekly digest and anomaly checks).
+  health_days: 30
+  # Archive copy of each alert batch (only used to render the inbox file).
+  batch_days: 14
+
+runner:
+  fast_workers: 8
+  browser_workers: 1
+  # Two runs a day means wall time is cheap; give big Workday boards room.
+  fast_timeout_seconds: 300
+  browser_timeout_seconds: 210
+
+alerting:
+  # Global default: Top/Strong roles interrupt via Gmail. Watch roles still land
+  # in the workflow inbox and are marked seen so they do not repeat every run.
+  # A tier can override this with its own email_bands (see notification.tiers).
+  email_bands:
+    - Top
+    - Strong
+
+companies:
+  # Example list -- replace with the companies you want to watch.
+  # Tiers route alerts (see notification.tiers): target / faang / other.
+  # Find a company's board with `python discover.py "Company Name"`, or add
+  # it by hand with name / tier / ats / slug (greenhouse, ashby, lever) or
+  # tenant + site (workday). One example per common adapter below.
+
+  - name: Stripe
+    tier: target
+    ats: greenhouse
+    slug: stripe
+
+  - name: Snowflake
+    tier: target
+    ats: ashby
+    slug: snowflake
+
+  - name: NVIDIA
+    tier: other
+    ats: workday
+    tenant: nvidia.wd5
+    site: NVIDIAExternalCareerSite
+    max_pages: 120
+    time_budget_seconds: 240   # large board; the default budget stops early
+
+  - name: Netflix
+    tier: faang
+    ats: netflix
+
+  - name: Google
+    tier: faang
+    ats: playwright
+    slug: google
+    # Per-company keywords replace the global list for this company only.
+    keywords:
+      - Machine Learning
+      - Software Engineer
+
+  # Some boards sit behind bot walls (Akamai / CAPTCHA) and return nothing
+  # to automated visits -- e.g. Apple, Meta, Microsoft, Tesla, Bloomberg.
+  # Check those by hand.
+
+notification:
+  # Recipient defaults to JOBWATCH_EMAIL_USER if not set here.
+  # Override with JOBWATCH_NOTIFY_EMAIL env var or uncomment below:
+  # email: your_email@example.com
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  subject_prefix: "[JobWatch Inbox]"
+  # Set these environment variables:
+  #   JOBWATCH_EMAIL_USER=your_gmail@gmail.com
+  #   JOBWATCH_EMAIL_PASSWORD=your_16_char_app_password
+  #   JOBWATCH_NOTIFY_EMAIL=recipient@example.com  (optional, defaults to EMAIL_USER)
+  # Push notifications via ntfy.sh (optional — set JOBWATCH_NTFY_TOPIC env var or uncomment below)
+  # ntfy_topic: your-secret-topic-name
+  ntfy_server: https://ntfy.sh
+
+  # Tier routing: companies are tagged tier: target | faang | other.
+  # Each alerting tier sends its own tagged email and its own ntfy topic so
+  # the streams stay distinct on your phone. Set alert: false on a tier to
+  # make it inbox-only (no email, no push).
+  # ntfy topic resolves from the first env var in the list that is set.
+  #
+  # email_bands (per tier, optional): which rank bands to alert on. Defaults
+  # to alerting.email_bands (Top/Strong). Sources with no posting date
+  # (Playwright scrapes, Netflix) can never score above Watch, so target,
+  # faang and newgrad alert on every band ("all") rather than losing them.
+  tiers:
+    target:
+      subject_tag: "🎯 TARGET"
+      ntfy_priority: "5"
+      ntfy_topic_env:
+        - JOBWATCH_NTFY_TOPIC_TARGET
+        - JOBWATCH_NTFY_TOPIC   # reuse the existing subscribed topic
+      alert: true
+      email_bands: all
+    faang:
+      subject_tag: "🚀 FAANG"
+      ntfy_priority: "4"
+      ntfy_topic_env:
+        - JOBWATCH_NTFY_TOPIC_FAANG
+      alert: true
+      email_bands: all
+    other:
+      subject_tag: "📋 OTHER"
+      ntfy_priority: "3"
+      ntfy_topic_env:
+        - JOBWATCH_NTFY_TOPIC_OTHER
+      alert: true   # uses the global Top/Strong gate
+    # New-grad / entry-level roles from ANY company route here instead of
+    # their company tier — a dedicated stream for new-grad hiring season.
+    # Off by default (see filters.exclude_new_grad). Flip both on to
+    # enable the stream.
+    newgrad:
+      subject_tag: "🎓 NEW GRAD"
+      ntfy_priority: "5"
+      ntfy_topic_env:
+        - JOBWATCH_NTFY_TOPIC_NEWGRAD
+      alert: false
+      email_bands: all
+
+ranking:
+  top_picks: 5
+  # +25 rank points: floats these to the top of each alert.
+  preferred_companies:
+    - Stripe

@@ -1,0 +1,29 @@
+# Secrets & credentials
+.env
+
+# Runtime data
+jobwatch.db
+h1b_sponsors.db
+logs/
+workflow-inbox/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Pytest
+.pytest_cache/

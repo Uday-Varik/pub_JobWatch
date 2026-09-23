@@ -1,0 +1,341 @@
+name: JobWatch - Career Page Monitor
+
+on:
+  # Twice on weekdays, all lanes. Recruiters publish during US business
+  # hours, heaviest Tue-Thu mornings Pacific. GitHub delays scheduled runs,
+  # worst at :00 (observed 2.5-4h late), so fire at an odd minute and an hour
+  # early; targets are US morning and afternoon. Adjust to taste.
+  # filters.max_age_hours (72) covers the weekend gap.
+  schedule:
+    - cron: '23 11 * * 1-5'
+    - cron: '23 20 * * 1-5'
+    - cron: '53 11 * * 1'     # Weekly source-health digest (Mon, after the morning run)
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: JobWatch lane to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - fast
+          - browser
+      health_digest:
+        description: Also send the source-health digest email
+        required: false
+        default: false
+        type: boolean
+      suppress_alerts:
+        description: Record new roles but send no email/push (use after a state problem)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: jobwatch-state
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    # Backstop against hung SMTP/IMAP or browser sessions: without this a
+    # stuck run holds the concurrency group for GitHub's 6h default and
+    # queued scheduled runs suspend all alerting. Browser lane normally
+    # takes ~25 min.
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Choose JobWatch lane
+        id: lane
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            lane="${{ inputs.lane }}"
+          elif [ "${{ github.event.schedule }}" = "53 11 * * 1" ]; then
+            lane="fast"    # digest run: the morning run already covered browser sources
+          else
+            lane="all"
+          fi
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "Running JobWatch lane: $lane"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          if [ "${{ steps.lane.outputs.lane }}" != "fast" ]; then
+            playwright install --with-deps chromium
+          fi
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+      - name: Compute H-1B fiscal quarter
+        id: h1b-key
+        run: |
+          month=$(date +%m)
+          year=$(date +%Y)
+          if [ "$month" -ge 10 ]; then fy=$((year + 1)); else fy=$year; fi
+          case $month in
+            10|11|12) q=1 ;;
+            01|02|03) q=2 ;;
+            04|05|06) q=3 ;;
+            07|08|09) q=4 ;;
+          esac
+          # DOL publishes LCA disclosure files a quarter or two in arrears, so
+          # the current (and sometimes previous) quarter 404s. Walk backwards
+          # until we find a file that actually exists instead of assuming a
+          # single-step fallback is published.
+          # DOL has published some quarters under a misspelled filename
+          # ("Dislclosure") and others under the correct one, so probe both.
+          found=0
+          for _ in 1 2 3 4 5; do
+            for spelling in Disclosure Dislclosure; do
+              url="https://www.dol.gov/media/LCA_${spelling}_Data_FY${fy}_Q${q}.xlsx"
+              if curl -sI -m 20 "$url" | head -1 | grep -q "200"; then
+                echo "key=h1b-sponsors-fy${fy}-q${q}" >> "$GITHUB_OUTPUT"
+                echo "url=$url" >> "$GITHUB_OUTPUT"
+                echo "Using H-1B data: FY${fy} Q${q} ($spelling)"
+                found=1
+                break
+              fi
+            done
+            [ "$found" -eq 1 ] && break
+            echo "FY${fy} Q${q} not available; trying the previous quarter"
+            if [ "$q" -eq 1 ]; then q=4; fy=$((fy - 1)); else q=$((q - 1)); fi
+          done
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          if [ "$found" -eq 0 ]; then
+            echo "No published H-1B LCA file in the last 5 quarters; sponsor tags will be skipped this run."
+          fi
+
+      - name: Download H-1B sponsor data (cached)
+        if: steps.h1b-key.outputs.found == '1'
+        uses: actions/cache@v5
+        id: h1b-cache
+        with:
+          path: h1b_sponsors.db
+          key: ${{ steps.h1b-key.outputs.key }}
+
+      - name: Build H-1B sponsor DB if not cached
+        if: steps.h1b-key.outputs.found == '1' && steps.h1b-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          curl -L -o /tmp/lca.xlsx "${{ steps.h1b-key.outputs.url }}"
+          # DOL occasionally serves a small HTML error stub with HTTP 200; a
+          # real LCA workbook is >100 MB. Skip (don't fail the run) if the
+          # download isn't a plausible xlsx.
+          size=$(wc -c < /tmp/lca.xlsx)
+          if [ "$size" -lt 1000000 ]; then
+            echo "H-1B download was only ${size} bytes (not a valid xlsx); skipping sponsor DB build."
+            exit 0
+          fi
+          python3 << 'PYEOF'
+          import openpyxl, sqlite3
+          import re
+
+          def normalize(name: str) -> str:
+              name = name.upper().strip().replace("&", " AND ")
+              name = re.sub(r"\b(INC\.?|LLC\.?|CORP\.?|CO\.?|LTD\.?|L\.?P\.?|GROUP|SERVICES?|TECHNOLOGIES?|COMPANY|SYSTEMS?)\b", "", name)
+              name = re.sub(r"[.,'\"()/-]", " ", name)
+              return re.sub(r"\s+", " ", name).strip()
+
+          wb = openpyxl.load_workbook('/tmp/lca.xlsx', read_only=True)
+          ws = wb.active
+          sponsors = {}
+          for row in ws.iter_rows(min_row=2, values_only=True):
+              visa = str(row[5] or '')
+              status = str(row[1] or '')
+              employer = str(row[19] or '').strip()
+              if 'H-1B' in visa and status in ('Certified', 'Certified - Withdrawn') and employer:
+                  name = employer.upper().strip()
+                  sponsors[name] = sponsors.get(name, 0) + 1
+          wb.close()
+          conn = sqlite3.connect('h1b_sponsors.db')
+          conn.execute("DROP TABLE IF EXISTS sponsors")
+          conn.execute(
+              "CREATE TABLE sponsors (employer_name TEXT PRIMARY KEY, normalized_name TEXT, lca_count INTEGER)"
+          )
+          conn.executemany(
+              "INSERT INTO sponsors (employer_name, normalized_name, lca_count) VALUES (?, ?, ?)",
+              [(employer_name, normalize(employer_name), count) for employer_name, count in sponsors.items()],
+          )
+          conn.execute("CREATE INDEX idx_sponsors_normalized_name ON sponsors(normalized_name)")
+          conn.commit()
+          conn.close()
+          print(f"Built H-1B DB: {len(sponsors)} sponsors")
+          PYEOF
+
+      # State lives in two places so one failing store cannot lose it:
+      # an Actions cache entry and an artifact, both holding the encrypted DB.
+      - name: Restore state copy from cache
+        id: state-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: jobwatch.db.enc
+          key: jobwatch-state-none-${{ github.run_id }}
+          restore-keys: |
+            jobwatch-state-
+
+      - name: Restore JobWatch state
+        id: state-artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE_KEY: ${{ secrets.JOBWATCH_STATE_KEY }}
+          CACHE_KEY: ${{ steps.state-cache.outputs.cache-matched-key }}
+        run: |
+          set -euo pipefail
+          restored=0
+          stale=0
+          # Only an encrypted copy is ever trusted; without the key start fresh.
+          # Snapshots are gzip-then-encrypt; older ones are plain encrypted
+          # SQLite, so accept both.
+          decrypt() {
+            openssl enc -d -aes-256-cbc -pbkdf2 -in "$1" -out jobwatch.db.tmp -pass env:STATE_KEY 2>/dev/null || return 1
+            if gzip -t jobwatch.db.tmp 2>/dev/null; then
+              gunzip -c jobwatch.db.tmp > jobwatch.db && rm -f jobwatch.db.tmp
+            else
+              mv jobwatch.db.tmp jobwatch.db
+            fi
+          }
+          if [ -z "$STATE_KEY" ]; then
+            echo "JOBWATCH_STATE_KEY not set; starting with a fresh local DB."
+          else
+            cache_run=0
+            if [ -n "$CACHE_KEY" ] && [ -f jobwatch.db.enc ]; then
+              cache_run=$(echo "$CACHE_KEY" | sed -E 's/^jobwatch-state-([0-9]+).*/\1/')
+              case "$cache_run" in ''|*[!0-9]*) cache_run=0 ;; esac
+              mv jobwatch.db.enc /tmp/cache-state.enc
+            fi
+            rm -f jobwatch.db.enc
+            cache_tried=0
+            try_cache() {
+              cache_tried=1
+              if [ "$cache_run" -gt 0 ] && decrypt /tmp/cache-state.enc; then
+                echo "Restored encrypted JobWatch DB from cache (run $cache_run)"
+                restored=1
+              fi
+            }
+            # List artifacts directly and sort by created_at ourselves. The
+            # filtered run list this used to walk came back out of order once
+            # and restored a month-old snapshot, re-alerting ~100 roles.
+            candidates=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=jobwatch-state&per_page=50" \
+              --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[:8][] | "\(.id) \(.workflow_run.id) \(.created_at)"' || true)
+            while read -r art_id art_run art_created; do
+              [ -z "${art_id:-}" ] && continue
+              if [ "$cache_tried" -eq 0 ] && [ "$cache_run" -ge "$art_run" ]; then
+                try_cache
+                [ "$restored" -eq 1 ] && break
+              fi
+              rm -rf /tmp/jobwatch-state && mkdir -p /tmp/jobwatch-state
+              if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$art_id/zip" > /tmp/jobwatch-state/a.zip 2>/dev/null \
+                 && unzip -o -q /tmp/jobwatch-state/a.zip -d /tmp/jobwatch-state \
+                 && [ -f /tmp/jobwatch-state/jobwatch.db.enc ] \
+                 && decrypt /tmp/jobwatch-state/jobwatch.db.enc; then
+                echo "Restored encrypted JobWatch DB from artifact $art_id (run $art_run, created $art_created)"
+                restored=1
+                age_days=$(( ( $(date -u +%s) - $(date -u -d "$art_created" +%s) ) / 86400 ))
+                if [ "$age_days" -gt 5 ]; then stale=1; echo "::warning::Restored state is $age_days days old."; fi
+                break
+              fi
+              echo "Could not use artifact $art_id; trying an older one."
+            done <<< "$candidates"
+            if [ "$restored" -eq 0 ] && [ "$cache_tried" -eq 0 ]; then try_cache; fi
+          fi
+          if [ "$restored" -eq 0 ]; then
+            echo "No previous JobWatch state found; starting with a fresh local DB."
+            stale=1
+          fi
+          # A missing or stale DB makes everything on the boards look new.
+          # Record it quietly instead of sending a wall of alerts.
+          if [ "$stale" -eq 1 ]; then
+            echo "::warning::State missing or stale: this run records roles without alerting."
+          fi
+          echo "restored=$restored" >> "$GITHUB_OUTPUT"
+          echo "stale=$stale" >> "$GITHUB_OUTPUT"
+
+      - name: Run JobWatch
+        env:
+          JOBWATCH_EMAIL_USER: ${{ secrets.JOBWATCH_EMAIL_USER }}
+          JOBWATCH_EMAIL_PASSWORD: ${{ secrets.JOBWATCH_EMAIL_PASSWORD }}
+          JOBWATCH_NTFY_TOPIC: ${{ secrets.JOBWATCH_NTFY_TOPIC }}
+          JOBWATCH_NTFY_TOPIC_TARGET: ${{ secrets.JOBWATCH_NTFY_TOPIC_TARGET }}
+          JOBWATCH_NTFY_TOPIC_FAANG: ${{ secrets.JOBWATCH_NTFY_TOPIC_FAANG }}
+          JOBWATCH_NTFY_TOPIC_OTHER: ${{ secrets.JOBWATCH_NTFY_TOPIC_OTHER }}
+          JOBWATCH_NTFY_TOPIC_NEWGRAD: ${{ secrets.JOBWATCH_NTFY_TOPIC_NEWGRAD }}
+          JOBWATCH_SUPPRESS_ALERTS: ${{ (steps.state-artifact.outputs.stale == '1' || inputs.suppress_alerts == true) && '1' || '' }}
+        run: python jobwatch.py run --lane "${{ steps.lane.outputs.lane }}"
+
+      - name: Weekly source-health digest
+        if: github.event.schedule == '53 11 * * 1' || inputs.health_digest == true
+        env:
+          JOBWATCH_EMAIL_USER: ${{ secrets.JOBWATCH_EMAIL_USER }}
+          JOBWATCH_EMAIL_PASSWORD: ${{ secrets.JOBWATCH_EMAIL_PASSWORD }}
+        run: python jobwatch.py health-digest
+
+      - name: Encrypt JobWatch state
+        if: always()
+        env:
+          STATE_KEY: ${{ secrets.JOBWATCH_STATE_KEY }}
+        run: |
+          # Artifacts on a public repo are downloadable by anyone with a
+          # GitHub account — never upload the DB in plaintext.
+          if [ -f jobwatch.db ] && [ -n "$STATE_KEY" ]; then
+            # Fold any WAL pages into the main file first; only jobwatch.db is
+            # uploaded, so writes still sitting in jobwatch.db-wal after a
+            # hard-killed run would otherwise be lost.
+            python3 -c "import sqlite3; c=sqlite3.connect('jobwatch.db'); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()" || true
+            # Compress first: encrypted bytes do not compress, SQLite does (~5x).
+            gzip -9 -c jobwatch.db | openssl enc -aes-256-cbc -pbkdf2 -salt -out jobwatch.db.enc -pass env:STATE_KEY
+            echo "State snapshot: $(wc -c < jobwatch.db) bytes raw -> $(wc -c < jobwatch.db.enc) bytes stored"
+          fi
+
+      - name: Save state copy to cache
+        id: save-cache
+        if: always() && hashFiles('jobwatch.db.enc') != ''
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: jobwatch.db.enc
+          key: jobwatch-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload JobWatch state artifact
+        id: save-artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: jobwatch-state
+          path: jobwatch.db.enc
+          if-no-files-found: warn
+          # Must outlive the longest gap between runs: the weekday-only
+          # schedule leaves a 63h hole every weekend, and a holiday or a few
+          # failed runs stretches it further. 14 days x ~2 runs/day x ~5 MB
+          # stays well inside a private repo's 500 MB artifact quota.
+          retention-days: 14
+
+      - name: Verify state was saved
+        if: always()
+        run: |
+          cache="${{ steps.save-cache.outcome }}"
+          artifact="${{ steps.save-artifact.outcome }}"
+          echo "state save: cache=$cache artifact=$artifact"
+          if [ "$cache" != "success" ] && [ "$artifact" != "success" ]; then
+            echo "::error::State was saved to neither the cache nor an artifact; the next run will re-alert."
+            exit 1
+          fi
+          if [ "$artifact" != "success" ]; then
+            echo "::warning::Artifact upload failed (storage quota?). State is in the cache only."
+          fi
