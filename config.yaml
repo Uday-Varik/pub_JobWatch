@@ -6,8 +6,11 @@ paused: false
 # want; a company can override this list with its own `keywords:`.
 keywords:
   - Software Engineer
+  - Data Scientist
+  - DataScientist
   - Software Development Engineer
   - Software Developer
+  - Data Analyst
   - Staff Software
   - Senior Software
   - Full Stack
@@ -22,15 +25,11 @@ keywords:
   - Generative AI
   - GenAI
   - Inference
-  - AI Infrastructure
   - Agents
-  - Platform Engineer
-  - Infrastructure Engineer
   - Research Engineer
-  - Forward Deployed
-  - FDE
-  - Member of Technical Staff
-  - MTS
+  - Ai Agents
+
+
 
 # Non-US locations are auto-filtered (India, UK, etc.)
 # Additional location allowlist (empty = accept all US locations):
@@ -107,6 +106,66 @@ companies:
     keywords:
       - Machine Learning
       - Software Engineer
+ # Newly list
+  - name: Amazon
+    tier: faang
+    ats: amazon
+
+  - name: Oracle
+    tier: target
+    ats: oracle
+    host: eeho.fa.us2.oraclecloud.com
+    site: CX_1
+
+  - name: Salesforce
+    tier: target
+    ats: workday
+    tenant: salesforce.wd12
+    site: External_Career_Site
+
+  - name: Uber
+    tier: target
+    ats: uber
+
+  - name: Databricks
+    tier: target
+    ats: greenhouse
+    slug: databricks
+
+  - name: JPMorgan Chase
+    tier: target
+    ats: oracle
+    host: jpmc.fa.oraclecloud.com
+    site: CX_1001
+
+  - name: Capital One
+    tier: target
+    ats: workday
+    tenant: capitalone.wd12
+    site: Capital_One
+
+  - name: Goldman Sachs
+    tier: target
+    ats: playwright
+    slug: goldman_sachs
+
+  - name: Bank of America
+    tier: target
+    ats: workday
+    tenant: ghr.wd1
+    site: Lateral-US
+
+  - name: Citi
+    tier: target
+    ats: workday
+    tenant: citi.wd5
+    site: "2"
+
+  - name: Visa
+    tier: target
+    ats: workday
+    tenant: visa.wd5
+    site: Visa
 
   # Some boards sit behind bot walls (Akamai / CAPTCHA) and return nothing
   # to automated visits -- e.g. Apple, Meta, Microsoft, Tesla, Bloomberg.
