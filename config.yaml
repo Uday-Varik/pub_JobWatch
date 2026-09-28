@@ -12,22 +12,17 @@ keywords:
   - Software Developer
   - Data Analyst
   - Staff Software
-  - Senior Software
-  - Full Stack
-  - Fullstack
   - Backend Engineer
   - AI Engineer
   - ML Engineer
   - Machine Learning
   - Applied AI
   - Applied ML
-  - LLM
   - Generative AI
   - GenAI
-  - Inference
   - Agents
   - Research Engineer
-  - Ai Agents
+  - AI Agents
 
 
 
@@ -38,7 +33,7 @@ locations: []
 filters:
   # Drop new-grad / early-career titles at the filter stage so they never
   # reach any tier.
-  exclude_new_grad: true
+  exclude_new_grad: false
   # Postings older than this are ignored. The pipeline runs twice on
   # weekdays only, so 72h covers Friday-afternoon-to-Monday-morning.
   max_age_hours: 72
