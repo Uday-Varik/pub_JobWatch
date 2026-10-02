@@ -65,52 +65,28 @@ alerting:
     - Strong
 
 companies:
-  # Example list -- replace with the companies you want to watch.
-  # Tiers route alerts (see notification.tiers): target / faang / other.
-  # Find a company's board with `python discover.py "Company Name"`, or add
-  # it by hand with name / tier / ats / slug (greenhouse, ashby, lever) or
-  # tenant + site (workday). One example per common adapter below.
-
-  - name: Stripe
+  - name: Amazon
     tier: target
-    ats: greenhouse
-    slug: stripe
-
-  - name: Snowflake
-    tier: target
-    ats: ashby
-    slug: snowflake
-
-  - name: NVIDIA
-    tier: other
-    ats: workday
-    tenant: nvidia.wd5
-    site: NVIDIAExternalCareerSite
-    max_pages: 120
-    time_budget_seconds: 240   # large board; the default budget stops early
-
-  - name: Netflix
-    tier: faang
-    ats: netflix
+    ats: amazon
 
   - name: Google
-    tier: faang
+    tier: target
     ats: playwright
     slug: google
-    # Per-company keywords replace the global list for this company only.
-    keywords:
-      - Machine Learning
-      - Software Engineer
- # Newly list
-  - name: Amazon
-    tier: faang
-    ats: amazon
 
   - name: Oracle
     tier: target
     ats: oracle
     host: eeho.fa.us2.oraclecloud.com
     site: CX_1
+
+  - name: NVIDIA
+    tier: target
+    ats: workday
+    tenant: nvidia.wd5
+    site: NVIDIAExternalCareerSite
+    max_pages: 120
+    time_budget_seconds: 240
 
   - name: Salesforce
     tier: target
