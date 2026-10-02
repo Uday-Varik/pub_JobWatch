@@ -5,24 +5,14 @@ paused: false
 # Titles to match (case-insensitive substring). Edit to fit the roles you
 # want; a company can override this list with its own `keywords:`.
 keywords:
-  - Software Engineer
-  - Data Scientist
-  - DataScientist
-  - Software Development Engineer
-  - Software Developer
+  - Entry Level
+  - Associate
+  - New Grad
+  - Graduate
+  - Junior
+  - Analyst
   - Data Analyst
-  - Staff Software
-  - Backend Engineer
-  - AI Engineer
-  - ML Engineer
-  - Machine Learning
-  - Applied AI
-  - Applied ML
-  - Generative AI
-  - GenAI
-  - Agents
-  - Research Engineer
-  - AI Agents
+  - Software Engineer
 
 
 
