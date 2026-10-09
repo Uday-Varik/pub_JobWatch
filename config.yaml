@@ -1,198 +1,337 @@
-# Set to true to stop fetching and alerting without touching anything else;
-# the tracked state is preserved and resumes when set back to false.
+# JobWatch Config - Focused on 40 companies easiest to enter as Masters-level new grad
+# Tier strategy: Easy → IT Services → Fintech → Moderate
+# Goal: Data Scientist, ML Engineer, Data Analyst entry-level roles
+
 paused: false
 
-# Titles to match (case-insensitive substring). Edit to fit the roles you
-# want; a company can override this list with its own `keywords:`.
 keywords:
-  - Entry Level
-  - Associate
-  - New Grad
-  - Graduate
-  - Junior
-  - Analyst
+  - Data Scientist
+  - Machine Learning Engineer
+  - ML Engineer
+  - Data Science
+  - Applied Scientist
   - Data Analyst
+  - Analytics Engineer
+  - Data Engineer
   - Software Engineer
 
-
-
-# Non-US locations are auto-filtered (India, UK, etc.)
-# Additional location allowlist (empty = accept all US locations):
-locations: []
+locations: []  # Accept all US
 
 filters:
-  # Drop new-grad / early-career titles at the filter stage so they never
-  # reach any tier.
-  exclude_new_grad: false
-  # Postings older than this are ignored. The pipeline runs twice on
-  # weekdays only, so 72h covers Friday-afternoon-to-Monday-morning.
+  exclude_new_grad: false  # KEEP entry-level roles
   max_age_hours: 72
 
 retention:
-  # How long a posting is remembered after it was LAST seen on a board.
-  # While a job stays posted it is refreshed every run and never expires;
-  # once it disappears it is kept this many more days so a repost is not
-  # re-alerted. Jobs you mark applied/interview/offer are never deleted.
   job_days: 60
-  # Per-source health history (feeds the weekly digest and anomaly checks).
   health_days: 30
-  # Archive copy of each alert batch (only used to render the inbox file).
   batch_days: 14
 
 runner:
   fast_workers: 8
   browser_workers: 1
-  # Two runs a day means wall time is cheap; give big Workday boards room.
   fast_timeout_seconds: 300
   browser_timeout_seconds: 210
 
 alerting:
-  # Global default: Top/Strong roles interrupt via Gmail. Watch roles still land
-  # in the workflow inbox and are marked seen so they do not repeat every run.
-  # A tier can override this with its own email_bands (see notification.tiers).
   email_bands:
     - Top
     - Strong
 
 companies:
-  - name: Amazon
-    tier: target
-    ats: amazon
-
-  - name: Google
-    tier: target
-    ats: playwright
-    slug: google
-
-  - name: Oracle
-    tier: target
-    ats: oracle
-    host: eeho.fa.us2.oraclecloud.com
-    site: CX_1
-
-  - name: NVIDIA
-    tier: target
-    ats: workday
-    tenant: nvidia.wd5
-    site: NVIDIAExternalCareerSite
-    max_pages: 120
-    time_budget_seconds: 240
-
-  - name: Salesforce
-    tier: target
-    ats: workday
-    tenant: salesforce.wd12
-    site: External_Career_Site
-
-  - name: Uber
-    tier: target
-    ats: uber
+  # ============================================================================
+  # TIER: EASY (11 companies) - Best shot as new grad with Masters degree
+  # Growth/startup stage, known new grad hiring, data/ML focused
+  # ============================================================================
 
   - name: Databricks
-    tier: target
+    tier: easy
     ats: greenhouse
     slug: databricks
 
-  - name: JPMorgan Chase
-    tier: target
-    ats: oracle
-    host: jpmc.fa.oraclecloud.com
-    site: CX_1001
+  - name: Stripe
+    tier: easy
+    ats: greenhouse
+    slug: stripe
+
+  - name: Datadog
+    tier: easy
+    ats: greenhouse
+    slug: datadog
+
+  - name: MongoDB
+    tier: easy
+    ats: greenhouse
+    slug: mongodb
+
+  - name: Pinterest
+    tier: easy
+    ats: greenhouse
+    slug: pinterest
+
+  - name: Twilio
+    tier: easy
+    ats: greenhouse
+    slug: twilio
+
+  - name: Okta
+    tier: easy
+    ats: greenhouse
+    slug: okta
+
+  - name: Zscaler
+    tier: easy
+    ats: greenhouse
+    slug: zscaler
+
+  - name: Snap
+    tier: easy
+    ats: workday
+    tenant: snapchat.wd1
+    site: snap
+
+  - name: Coinbase
+    tier: easy
+    ats: greenhouse
+    slug: coinbase
+
+  - name: Robinhood
+    tier: easy
+    ats: greenhouse
+    slug: robinhood
+
+  # ============================================================================
+  # TIER: IT_SERVICES (8 companies) - Highest volume, fastest hiring
+  # Major new grad pipelines, guaranteed H-1B, usually offer within weeks
+  # ============================================================================
+
+  - name: Tata Consultancy Services
+    tier: it_services
+    ats: playwright
+    slug: tata_consultancy_services
+
+  - name: Infosys
+    tier: it_services
+    ats: playwright
+    slug: infosys
+
+  - name: Cognizant
+    tier: it_services
+    ats: playwright
+    slug: cognizant
+
+  - name: Wipro
+    tier: it_services
+    ats: playwright
+    slug: wipro
+
+  - name: HCLTech
+    tier: it_services
+    ats: playwright
+    slug: hcltech
+
+  - name: Tech Mahindra
+    tier: it_services
+    ats: playwright
+    slug: tech_mahindra
+
+  - name: LTIMindtree
+    tier: it_services
+    ats: playwright
+    slug: ltimindtree
+
+  - name: Accenture
+    tier: it_services
+    ats: workday
+    tenant: accenture.wd103
+    site: AccentureCareers
+
+  # ============================================================================
+  # TIER: FINTECH (9 companies) - Data-heavy roles, strong sponsorship
+  # Banks + fintech with large data science teams
+  # ============================================================================
 
   - name: Capital One
-    tier: target
+    tier: fintech
     ats: workday
     tenant: capitalone.wd12
     site: Capital_One
 
-  - name: Goldman Sachs
-    tier: target
-    ats: playwright
-    slug: goldman_sachs
-
-  - name: Bank of America
-    tier: target
-    ats: workday
-    tenant: ghr.wd1
-    site: Lateral-US
+  - name: JPMorgan Chase
+    tier: fintech
+    ats: oracle
+    host: jpmc.fa.oraclecloud.com
+    site: CX_1001
 
   - name: Citi
-    tier: target
+    tier: fintech
     ats: workday
     tenant: citi.wd5
     site: "2"
 
   - name: Visa
-    tier: target
+    tier: fintech
     ats: workday
     tenant: visa.wd5
     site: Visa
 
-  # Some boards sit behind bot walls (Akamai / CAPTCHA) and return nothing
-  # to automated visits -- e.g. Apple, Meta, Microsoft, Tesla, Bloomberg.
-  # Check those by hand.
+  - name: Fidelity Investments
+    tier: fintech
+    ats: workday
+    tenant: fmr.wd1
+    site: FidelityCareers
+
+  - name: Wells Fargo
+    tier: fintech
+    ats: workday
+    tenant: wf.wd1
+    site: WellsFargoJobs
+
+  - name: Mastercard
+    tier: fintech
+    ats: workday
+    tenant: mastercard.wd1
+    site: CorporateCareers
+
+  - name: PayPal
+    tier: fintech
+    ats: workday
+    tenant: paypal.wd1
+    site: jobs
+
+  - name: Block
+    tier: fintech
+    ats: greenhouse
+    slug: block
+
+  # ============================================================================
+  # TIER: MODERATE (12 companies) - Harder bar but worth trying
+  # Big Tech and well-known names
+  # ============================================================================
+
+  - name: Amazon
+    tier: moderate
+    ats: amazon
+
+  - name: Microsoft
+    tier: moderate
+    ats: playwright
+    slug: microsoft
+
+  - name: Google
+    tier: moderate
+    ats: playwright
+    slug: google
+
+  - name: Meta
+    tier: moderate
+    ats: playwright
+    slug: meta
+
+  - name: Apple
+    tier: moderate
+    ats: playwright
+    slug: apple
+
+  - name: Netflix
+    tier: moderate
+    ats: playwright
+    slug: netflix
+
+  - name: Uber
+    tier: moderate
+    ats: uber
+
+  - name: Workday
+    tier: moderate
+    ats: workday
+    tenant: workday.wd5
+    site: Workday
+
+  - name: Snowflake
+    tier: moderate
+    ats: playwright
+    slug: snowflake
+
+  - name: Airbnb
+    tier: moderate
+    ats: greenhouse
+    slug: airbnb
+
+  - name: eBay
+    tier: moderate
+    ats: workday
+    tenant: ebay.wd5
+    site: apply
+
+  - name: Target
+    tier: moderate
+    ats: workday
+    tenant: target.wd5
+    site: targetcareers
 
 notification:
-  # Recipient defaults to JOBWATCH_EMAIL_USER if not set here.
-  # Override with JOBWATCH_NOTIFY_EMAIL env var or uncomment below:
-  # email: your_email@example.com
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  subject_prefix: "[JobWatch Inbox]"
-  # Set these environment variables:
-  #   JOBWATCH_EMAIL_USER=your_gmail@gmail.com
-  #   JOBWATCH_EMAIL_PASSWORD=your_16_char_app_password
-  #   JOBWATCH_NOTIFY_EMAIL=recipient@example.com  (optional, defaults to EMAIL_USER)
-  # Push notifications via ntfy.sh (optional — set JOBWATCH_NTFY_TOPIC env var or uncomment below)
-  # ntfy_topic: your-secret-topic-name
+  subject_prefix: "[JobWatch]"
   ntfy_server: https://ntfy.sh
 
-  # Tier routing: companies are tagged tier: target | faang | other.
-  # Each alerting tier sends its own tagged email and its own ntfy topic so
-  # the streams stay distinct on your phone. Set alert: false on a tier to
-  # make it inbox-only (no email, no push).
-  # ntfy topic resolves from the first env var in the list that is set.
-  #
-  # email_bands (per tier, optional): which rank bands to alert on. Defaults
-  # to alerting.email_bands (Top/Strong). Sources with no posting date
-  # (Playwright scrapes, Netflix) can never score above Watch, so target,
-  # faang and newgrad alert on every band ("all") rather than losing them.
   tiers:
-    target:
-      subject_tag: "🎯 TARGET"
+    # PRIORITY 1: Companies with the highest chance of acceptance
+    easy:
+      subject_tag: "🎯 EASY ENTRY (APPLY FIRST!)"
       ntfy_priority: "5"
       ntfy_topic_env:
-        - JOBWATCH_NTFY_TOPIC_TARGET
-        - JOBWATCH_NTFY_TOPIC   # reuse the existing subscribed topic
+        - JOBWATCH_NTFY_TOPIC_EASY
+        - JOBWATCH_NTFY_TOPIC
       alert: true
       email_bands: all
-    faang:
-      subject_tag: "🚀 FAANG"
+
+    # PRIORITY 2: High-volume hiring, fast response
+    it_services:
+      subject_tag: "📊 IT SERVICES (Fast Track)"
       ntfy_priority: "4"
       ntfy_topic_env:
-        - JOBWATCH_NTFY_TOPIC_FAANG
+        - JOBWATCH_NTFY_TOPIC_IT
+        - JOBWATCH_NTFY_TOPIC
       alert: true
       email_bands: all
-    other:
-      subject_tag: "📋 OTHER"
+
+    # PRIORITY 3: Data-focused, strong teams
+    fintech:
+      subject_tag: "💰 FINTECH (Data Roles)"
+      ntfy_priority: "4"
+      ntfy_topic_env:
+        - JOBWATCH_NTFY_TOPIC_FINTECH
+        - JOBWATCH_NTFY_TOPIC
+      alert: true
+      email_bands: all
+
+    # PRIORITY 4: Stretch targets
+    moderate:
+      subject_tag: "⚡ STRETCH (Big Tech)"
       ntfy_priority: "3"
       ntfy_topic_env:
-        - JOBWATCH_NTFY_TOPIC_OTHER
-      alert: true   # uses the global Top/Strong gate
-    # New-grad / entry-level roles from ANY company route here instead of
-    # their company tier — a dedicated stream for new-grad hiring season.
-    # Off by default (see filters.exclude_new_grad). Flip both on to
-    # enable the stream.
+        - JOBWATCH_NTFY_TOPIC_MODERATE
+        - JOBWATCH_NTFY_TOPIC
+      alert: true
+      email_bands: all
+
+    # Entry-level specific (routes here instead of company tier)
     newgrad:
       subject_tag: "🎓 NEW GRAD"
       ntfy_priority: "5"
       ntfy_topic_env:
         - JOBWATCH_NTFY_TOPIC_NEWGRAD
-      alert: false
+        - JOBWATCH_NTFY_TOPIC
+      alert: true
       email_bands: all
 
 ranking:
-  top_picks: 5
-  # +25 rank points: floats these to the top of each alert.
+  top_picks: 10
+  # Preferred = float to top of each alert
   preferred_companies:
+    - Databricks
     - Stripe
+    - Capital One
+    - Tata Consultancy Services
+    - Infosys
