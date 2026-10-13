@@ -5,17 +5,44 @@
 paused: false
 
 keywords:
+  # Entry-level and new grad specific titles
+  - Entry Level
+  - Entry-Level
+  - New Grad
+  - New Graduate
+  - Graduate Program
+  - Junior Data Scientist
+  - Junior ML Engineer
+  - Junior Machine Learning
+  - Associate Data Scientist
+  - Associate ML Engineer
+  - Associate Data Analyst
+  - Associate Engineer
+  - Graduate Data Scientist
+  - Graduate Engineer
+  - Data Analyst
+  - Analytics Engineer
   - Data Scientist
   - Machine Learning Engineer
   - ML Engineer
-  - Data Science
   - Applied Scientist
-  - Data Analyst
-  - Analytics Engineer
   - Data Engineer
   - Software Engineer
   - Software Developer
   - MLE
+
+# EXCLUDE senior/staff/lead roles even if keywords match
+exclude_keywords:
+  - Senior
+  - Staff
+  - Principal
+  - Lead
+  - Manager
+  - Architect
+  - Director
+  - Distinguished
+  - VP
+  - Head of
 
 locations: []  # Accept all US
 
