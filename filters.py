@@ -238,6 +238,17 @@ def matches_keywords(title: str, keywords: list[str]) -> bool:
     return False
 
 
+def matches_exclude_keywords(title: str, exclude_keywords: list[str]) -> bool:
+    """Returns True if title contains ANY exclude keyword (should be filtered OUT)."""
+    if not exclude_keywords:
+        return False
+    title_lower = title.lower()
+    for kw in exclude_keywords:
+        if kw.lower() in title_lower:
+            return True
+    return False
+
+
 def is_excluded(title: str, allow_seniority_titles: bool = False) -> bool:
     if _hard_neg_re.search(title):
         return True
@@ -421,6 +432,7 @@ def filter_jobs(
     allow_seniority_titles: bool = False,
     exclude_new_grad: bool = False,
     max_age_hours: int = MAX_AGE_HOURS,
+    exclude_keywords: list[str] | None = None,
 ) -> list[dict]:
     matched = []
     for job in jobs:
@@ -428,6 +440,8 @@ def filter_jobs(
         location = job.get("location", "")
 
         if not matches_keywords(title, keywords):
+            continue
+        if matches_exclude_keywords(title, exclude_keywords or []):
             continue
         if is_excluded(title, allow_seniority_titles=allow_seniority_titles):
             continue

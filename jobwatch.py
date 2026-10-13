@@ -117,9 +117,11 @@ def _selected_companies(companies: list[dict], lane: str) -> list[dict]:
 
 def _filter_settings(config: dict) -> dict:
     configured = (config.get("filters", {}) if config else {}) or {}
+    exclude_keywords = config.get("exclude_keywords", []) if config else []
     return {
         "exclude_new_grad": bool(configured.get("exclude_new_grad", False)),
         "max_age_hours": _as_positive_int(configured.get("max_age_hours"), MAX_AGE_HOURS),
+        "exclude_keywords": exclude_keywords,
     }
 
 
@@ -130,6 +132,7 @@ def _fetch_company_result(
     locations: list[str],
     exclude_new_grad: bool = False,
     max_age_hours: int = MAX_AGE_HOURS,
+    exclude_keywords: list[str] | None = None,
 ) -> dict:
     name = company.get("name", "Unknown")
     ats = company.get("ats", "")
@@ -165,6 +168,7 @@ def _fetch_company_result(
             allow_seniority_titles=bool(company.get("allow_seniority_titles", False)),
             exclude_new_grad=exclude_new_grad,
             max_age_hours=max_age_hours,
+            exclude_keywords=exclude_keywords,
         )
         for job in matched:
             job.setdefault("source", ats)
@@ -186,8 +190,9 @@ def _fetch_company_result(
 def _fetch_company_worker(
     index: int, company: dict, keywords: list[str], locations: list[str], outbox,
     exclude_new_grad: bool = False, max_age_hours: int = MAX_AGE_HOURS,
+    exclude_keywords: list[str] | None = None,
 ) -> None:
-    outbox.put(_fetch_company_result(index, company, keywords, locations, exclude_new_grad, max_age_hours))
+    outbox.put(_fetch_company_result(index, company, keywords, locations, exclude_new_grad, max_age_hours, exclude_keywords))
 
 
 def _timeout_result(index: int, company: dict, timeout_seconds: int) -> dict:
@@ -214,6 +219,7 @@ def _run_source_pool(
     timeout_seconds: int,
     exclude_new_grad: bool = False,
     max_age_hours: int = MAX_AGE_HOURS,
+    exclude_keywords: list[str] | None = None,
 ) -> list[dict]:
     pending = list(enumerate(companies))
     active = []
@@ -226,7 +232,7 @@ def _run_source_pool(
         outbox = mp.Queue(maxsize=1)
         process = mp.Process(
             target=_fetch_company_worker,
-            args=(index, company, keywords, locations, outbox, exclude_new_grad, max_age_hours),
+            args=(index, company, keywords, locations, outbox, exclude_new_grad, max_age_hours, exclude_keywords),
         )
         process.start()
         active.append(
@@ -353,6 +359,7 @@ def _run_fetch_plan(
                 timeout_seconds=timeout_seconds,
                 exclude_new_grad=filter_settings["exclude_new_grad"],
                 max_age_hours=filter_settings["max_age_hours"],
+                exclude_keywords=filter_settings.get("exclude_keywords"),
             )
         )
 
